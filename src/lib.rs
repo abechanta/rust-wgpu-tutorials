@@ -37,9 +37,17 @@ impl Vertex {
 }
 
 const VERTICES: &[Vertex] = &[
-    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0] },
+    Vertex { position: [-0.0868241, 0.49240386, 0.0], color: [0.5, 0.0, 0.5] }, // A
+    Vertex { position: [-0.49513406, 0.06958647, 0.0], color: [0.5, 0.0, 0.5] }, // B
+    Vertex { position: [-0.21918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, // C
+    Vertex { position: [0.35966998, -0.3473291, 0.0], color: [0.5, 0.0, 0.5] }, // D
+    Vertex { position: [0.44147372, 0.2347359, 0.0], color: [0.5, 0.0, 0.5] }, // E
+];
+
+const INDICES: &[u16] = &[
+    0, 1, 4,
+    1, 2, 4,
+    2, 3, 4,
 ];
 
 struct State {
@@ -50,6 +58,7 @@ struct State {
     config: wgpu::SurfaceConfiguration,
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
     window: Window, // declared last for unsafe references from some resource like surface
 }
 
@@ -143,12 +152,17 @@ impl State {
         });
 
         //
-        // vertex_buffer
+        // vertex_buffer, index_buffer
         //
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
             usage: wgpu::BufferUsages::VERTEX,
             contents: bytemuck::cast_slice(VERTICES),
+        });
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            usage: wgpu::BufferUsages::INDEX,
+            contents: bytemuck::cast_slice(INDICES),
         });
 
         Self {
@@ -160,6 +174,7 @@ impl State {
             config,
             render_pipeline,
             vertex_buffer,
+            index_buffer,
         }
     }
 
@@ -189,7 +204,7 @@ impl State {
             label: Some("Render Encoder"),
         });
         {
-            let num_vertices = VERTICES.len() as u32;
+            let num_vertices = INDICES.len() as u32;
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[
@@ -211,7 +226,8 @@ impl State {
             });
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.draw(0..num_vertices, 0..1);
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..num_vertices, 0, 0..1);
         }
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
