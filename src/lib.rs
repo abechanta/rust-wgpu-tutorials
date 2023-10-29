@@ -5,6 +5,7 @@ mod texture;
 use crate::camera::*;
 use crate::instance::*;
 use cgmath::prelude::*;
+use texture::Texture;
 use winit::{
     event::*,
     event_loop::{EventLoop, ControlFlow},
@@ -66,6 +67,7 @@ struct State {
     device: wgpu::Device,
     queue: wgpu::Queue,
     config: wgpu::SurfaceConfiguration,
+    depth_texture: texture::Texture,
     diffuse_bind_group: wgpu::BindGroup,
     diffuse_texture: texture::Texture,
     camera: Camera,
@@ -121,6 +123,11 @@ impl State {
             view_formats: vec![],
         };
         surface.configure(&device, &config);
+
+        //
+        // depth_texture
+        //
+        let depth_texture = texture::Texture::create_depth_texture(&device, &config, Some("Depth Texture")).unwrap();
 
         //
         // diffuse_bind_group
@@ -273,7 +280,13 @@ impl State {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: Texture::DEPTH_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -308,6 +321,7 @@ impl State {
             device,
             queue,
             config,
+            depth_texture,
             diffuse_bind_group,
             diffuse_texture,
             camera,
@@ -332,6 +346,7 @@ impl State {
             self.size = new_size;
             (self.config.width, self.config.height) = (new_size.width, new_size.height);
             self.surface.configure(&self.device, &self.config);
+            self.depth_texture = texture::Texture::create_depth_texture(&self.device, &self.config, Some("Depth Texture")).unwrap();
         }
     }
 
@@ -370,7 +385,14 @@ impl State {
                         },
                     }),
                 ],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
             });
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
